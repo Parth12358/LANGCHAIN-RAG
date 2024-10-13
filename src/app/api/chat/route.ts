@@ -1,26 +1,101 @@
-import OpenAI from 'openai';
-import { OpenAIStream, StreamingTextResponse } from 'ai';
+import {
+    Message as VercelChatMessage,
+    StreamingTextResponse,
+    createStreamDataTransformer
+} from 'ai';
+import { ChatOpenAI } from '@langchain/openai';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { HttpResponseOutputParser } from 'langchain/output_parsers';
+
+import { JSONLoader } from "langchain/document_loaders/fs/json";
+import { RunnableSequence } from '@langchain/core/runnables'
+import { formatDocumentsAsString } from 'langchain/util/document';
+import { CharacterTextSplitter } from 'langchain/text_splitter';
+
+import fs from 'fs'
+import path from 'path'
+
+const loader = new JSONLoader(
+    "src/data/states.json",
+    ["/state", "/code", "/nickname", "/website", "/admission_date", "/admission_number", "/capital_city", "/capital_url", "/population", "/population_rank", "/constitution_url", "/twitter_url"],
+);
 
 export const dynamic = 'force-dynamic'
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-});
+/**
+ * Basic memory formatter that stringifies and passes
+ * message history directly into the model.
+ */
+const formatMessage = (message: VercelChatMessage) => {
+    return `${message.role}: ${message.content}`;
+};
+
+const TEMPLATE = `Answer the user's questions based on the following context. Act like a career consultant. If the answer is not in the context, reply politely that you do not have that information available.:
+==============================
+Context: {context}
+==============================
+Current conversation: {chat_history}
+
+user: {question}
+assistant:`;
+ 
 
 export async function POST(req: Request) {
-    // Extract the `messages` from the body of the request
-    const { messages } = await req.json();
+    try {
+        // Extract the `messages` from the body of the request
+        const { messages } = await req.json();
 
-    // Request the OpenAI API for the response based on the prompt
-    const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        stream: true,
-        messages: messages,
-    });
+        const formattedPreviousMessages = messages.slice(0, -1).map(formatMessage);
 
-    // Convert the response into a friendly text-stream
-    const stream = OpenAIStream(response);
+        const currentMessageContent = messages[messages.length - 1].content;
 
-    // Respond with the stream
-    return new StreamingTextResponse(stream);
+        const docs = await loader.load();
+
+       
+        const txtFilePath = path.join(process.cwd(), 'src/data/smeal.txt');
+        const txtContent = fs.readFileSync(txtFilePath, 'utf-8');
+
+        const combinedContent = `${formatDocumentsAsString(docs)}\n\n${txtContent}`;
+
+
+        const prompt = PromptTemplate.fromTemplate(TEMPLATE);
+
+        const model = new ChatOpenAI({
+            apiKey: process.env.OPENAI_API_KEY!,
+            model: 'gpt-3.5-turbo',
+            temperature: 1.2,
+            streaming: true,
+            verbose: true,
+        });
+
+        /**
+       * Chat models stream message chunks rather than bytes, so this
+       * output parser handles serialization and encoding.
+       */
+        const parser = new HttpResponseOutputParser();
+
+        const chain = RunnableSequence.from([
+            {
+                question: (input) => input.question,
+                chat_history: (input) => input.chat_history,
+                context: () => combinedContent,
+            },
+            prompt,
+            model,
+            parser,
+        ]);
+
+        // Convert the response into a friendly text-stream
+        const stream = await chain.stream({
+            chat_history: formattedPreviousMessages.join('\n'),
+            question: currentMessageContent,
+        });
+
+        // Respond with the stream
+        return new StreamingTextResponse(
+            stream.pipeThrough(createStreamDataTransformer()),
+        );
+    } catch (e: any) {
+        return Response.json({ error: e.message }, { status: e.status ?? 500 });
+    }
 }
