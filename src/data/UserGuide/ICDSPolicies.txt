@@ -1,0 +1,13 @@
+Users of the Roar supercomputer agree to abide by all policies listed here. By requesting a Roar user account, users acknowledge that they have read and understood these policies.
+ICDS-ACI-P020 Data Protection and Retention
+
+This policy outlines the protection of data created, collected, or manipulated by personnel that fall within the scope of Roar. It specifies data retention policies and resources, as well as the responsibilities of the principal investigator, the University, and Roar.
+ICDS-ACI-P030 Authentication and Access Control
+
+This policy serves to manage the lifecycle of Roar accounts created under the current state and configuration of Roar. It specifies criteria for creating a user account, using an account, transferring an existing user account, and terminating a user account.
+ICDS-ACI-P040 Software Acceptable Use
+
+This policy explains how software is introduced, installed, and maintained on the Roar system. The policy details how users can install their own software in their user or group spaces, as well as how ICDS will regularly update the Roar software stack. The policy also discusses responsibility for licensing and usage agreements.
+ICDS-ACI-P060 Service Level Agreement Terms and Conditions
+
+This terms and conditions document outlines the basic provisions that guide the working relationships between researchers and Roar. 
